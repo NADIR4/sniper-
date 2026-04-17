@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+*.pkl
+*.db
+cache/
+exports/
+logs/
+ml/models/*.pkl
+ml/models/*.h5
+ml/models/*.keras
+.venv/
+venv/
+.pytest_cache/
+.streamlit/secrets.toml
