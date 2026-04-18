@@ -64,6 +64,7 @@ def _signals_to_df(signals: list[Signal]) -> pd.DataFrame:
         "Confiance": s.confidence,
         "RF": s.rf_prob,
         "XGBoost": s.xgb_prob,
+        "LightGBM": s.lgb_prob or 0.0,
         "LSTM": s.lstm_prob,
         "IsoForest": s.iso_score,
         "Cible +50%": s.target_1,

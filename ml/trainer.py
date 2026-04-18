@@ -242,11 +242,49 @@ def _train_xgb(X: pd.DataFrame, y: pd.Series, direction: Direction):
         probs.extend(p)
         trues.extend(y.iloc[te].values)
 
-    final = XGBClassifier(**params)
-    final.fit(X, y)
-    importance = dict(zip(FEATURE_NAMES, final.feature_importances_.tolist()))
+    # Calibration isotonic (probas mieux alignées pour le consensus pondéré)
+    final = _calibrate(XGBClassifier(**params), X, y)
+    base = final.estimator
+    importance = dict(zip(FEATURE_NAMES, base.feature_importances_.tolist()))
     roc = _roc_data(trues, probs)
     m = _metrics("XGBoost", direction, trues, probs, time.time() - t0)
+    return final, m, importance, roc
+
+
+def _train_lgb(X: pd.DataFrame, y: pd.Series, direction: Direction):
+    """LightGBM calibré isotonic — consensus plus robuste + importance stable.
+
+    scale_pos_weight calculé comme XGB. Retourne (None, stub_metrics, {}, roc)
+    si LightGBM absent (gracieux).
+    """
+    t0 = time.time()
+    stub_metrics = ModelMetrics(
+        "LightGBM", direction, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        int(len(y)), int(y.sum()),
+    )
+    empty_roc = {"fpr": [], "tpr": []}
+    if not _LGBM_AVAILABLE:
+        logger.warning(f"[lgb/{direction}] LightGBM non installé — sauté")
+        return None, stub_metrics, {}, empty_roc
+
+    n_pos = max(int(y.sum()), 1)
+    scale_pos = float((len(y) - y.sum()) / n_pos)
+    params = {**LGB_PARAMS, "scale_pos_weight": scale_pos}
+
+    tscv = TimeSeriesSplit(n_splits=5)
+    probs, trues = [], []
+    for tr, te in tscv.split(X):
+        clf = LGBMClassifier(**params)
+        clf.fit(X.iloc[tr], y.iloc[tr])
+        p = clf.predict_proba(X.iloc[te])[:, 1]
+        probs.extend(p)
+        trues.extend(y.iloc[te].values)
+
+    final = _calibrate(LGBMClassifier(**params), X, y)
+    base = final.estimator
+    importance = dict(zip(FEATURE_NAMES, base.feature_importances_.tolist()))
+    roc = _roc_data(trues, probs)
+    m = _metrics("LightGBM", direction, trues, probs, time.time() - t0)
     return final, m, importance, roc
 
 
@@ -324,6 +362,13 @@ def _train_direction(
         f"F1={xgb_m.f1:.3f}, {xgb_m.train_time_sec}s"
     )
 
+    logger.info(f"[trainer/{direction}] 💡 LightGBM…")
+    lgb, lgb_m, lgb_imp, lgb_roc = _train_lgb(X_scaled, y, direction)
+    logger.info(
+        f"   → AUC={lgb_m.roc_auc:.3f}, PR-AUC={lgb_m.pr_auc:.3f}, "
+        f"F1={lgb_m.f1:.3f}, {lgb_m.train_time_sec}s"
+    )
+
     # LSTM uniquement pour LONG (compat descendante) — SHORT skippé
     lstm, lstm_m, lstm_roc = None, None, {"fpr": [], "tpr": []}
     if direction == "long":
@@ -340,17 +385,25 @@ def _train_direction(
     models_dir = settings.models_dir
     joblib.dump(rf, models_dir / f"rf_{direction}.pkl")
     joblib.dump(xgb, models_dir / f"xgb_{direction}.pkl")
+    if lgb is not None:
+        joblib.dump(lgb, models_dir / f"lgb_{direction}.pkl")
     if lstm is not None:
         lstm.save(models_dir / f"lstm_{direction}.keras")
 
     return {
         "rf": rf_m.to_dict(),
         "xgboost": xgb_m.to_dict(),
+        "lightgbm": lgb_m.to_dict(),
         "lstm": lstm_m.to_dict(),
-        "feature_importance": {"random_forest": rf_imp, "xgboost": xgb_imp},
+        "feature_importance": {
+            "random_forest": rf_imp,
+            "xgboost": xgb_imp,
+            "lightgbm": lgb_imp,
+        },
         "roc_curves": {
             "random_forest": rf_roc,
             "xgboost": xgb_roc,
+            "lightgbm": lgb_roc,
             "lstm": lstm_roc,
         },
     }
@@ -447,6 +500,7 @@ def train_all(panels: dict[str, pd.DataFrame]) -> dict:
         "hyperparameters": {
             "random_forest": RF_PARAMS,
             "xgboost": XGB_PARAMS,
+            "lightgbm": LGB_PARAMS,
             "lstm": LSTM_PARAMS,
             "isolation_forest": ISO_PARAMS,
             "consensus_weights": CONSENSUS_WEIGHTS,
@@ -491,8 +545,10 @@ def load_models() -> dict:
 
     rf_long = _load_optional(m / "rf_long.pkl") or _load_optional(m / "rf.pkl")
     xgb_long = _load_optional(m / "xgb_long.pkl") or _load_optional(m / "xgb.pkl")
+    lgb_long = _load_optional(m / "lgb_long.pkl")
     rf_short = _load_optional(m / "rf_short.pkl")
     xgb_short = _load_optional(m / "xgb_short.pkl")
+    lgb_short = _load_optional(m / "lgb_short.pkl")
 
     lstm_long = None
     for p in (m / "lstm_long.keras", m / "lstm.keras"):
@@ -516,12 +572,15 @@ def load_models() -> dict:
         # Legacy keys (= LONG direction)
         "rf": rf_long,
         "xgb": xgb_long,
+        "lgb": lgb_long,
         "lstm": lstm_long,
         # Explicit per-direction
         "rf_long": rf_long,
         "xgb_long": xgb_long,
+        "lgb_long": lgb_long,
         "lstm_long": lstm_long,
         "rf_short": rf_short,
         "xgb_short": xgb_short,
+        "lgb_short": lgb_short,
         "metrics": metrics,
     }

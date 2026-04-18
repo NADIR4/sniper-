@@ -72,6 +72,7 @@ def build_signal(scan: ScanResult) -> Signal | None:
         consensus_short=scan.consensus_short,
         rf_prob=scan.rf_prob,
         xgb_prob=scan.xgb_prob,
+        lgb_prob=scan.lgb_prob,
         lstm_prob=scan.lstm_prob,
         iso_score=scan.iso_score,
         confidence=_confidence_level(scan.consensus),

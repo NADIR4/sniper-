@@ -104,7 +104,7 @@ def test_compute_features_integrates_news() -> None:
 
     feats = compute_features(df, news_df=news)
     assert list(feats.columns) == FEATURE_NAMES
-    assert len(feats.columns) == 29  # 25 techniques + 4 news
+    assert len(feats.columns) == 37  # 25 tech + 8 advanced + 4 news (Sprint 4)
     # Pas de NaN sur les features news après warm-up
     tail = feats.dropna().tail(50)
     assert tail["news_sent_7d"].notna().all()

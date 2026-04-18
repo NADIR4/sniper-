@@ -8,7 +8,7 @@ from ml.scanner import _score_one
 from ml.features import FEATURE_NAMES
 
 
-def _synthetic_ohlcv(n: int = 120, seed: int = 1) -> pd.DataFrame:
+def _synthetic_ohlcv(n: int = 400, seed: int = 1) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     close = 100 + np.cumsum(rng.normal(0.2, 1.0, n))
     close = np.maximum(close, 5)
@@ -64,7 +64,7 @@ def _models_stub(long_prob: float, short_prob: float) -> dict:
 
 
 def test_scanner_picks_long_when_long_wins() -> None:
-    df = _synthetic_ohlcv(200)
+    df = _synthetic_ohlcv(400)
     models = _models_stub(long_prob=0.90, short_prob=0.10)
     result = _score_one("TEST", df, models)
     assert result is not None
@@ -74,7 +74,7 @@ def test_scanner_picks_long_when_long_wins() -> None:
 
 
 def test_scanner_picks_short_when_short_wins() -> None:
-    df = _synthetic_ohlcv(200)
+    df = _synthetic_ohlcv(400)
     models = _models_stub(long_prob=0.10, short_prob=0.90)
     result = _score_one("TEST", df, models)
     assert result is not None
@@ -91,7 +91,7 @@ def test_scanner_returns_none_on_insufficient_data() -> None:
 
 def test_scanner_missing_short_models_defaults_to_zero() -> None:
     """Si rf_short/xgb_short absents, consensus_short=iso uniquement."""
-    df = _synthetic_ohlcv(200)
+    df = _synthetic_ohlcv(400)
     models = _models_stub(0.80, 0.0)
     models["rf_short"] = None
     models["xgb_short"] = None

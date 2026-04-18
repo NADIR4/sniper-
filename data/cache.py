@@ -33,7 +33,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from config import settings
 
 # Bump à chaque changement de features/labels pour invalider caches + models
-FEATURE_VERSION = "v3_news"
+FEATURE_VERSION = "v4_lgb"
 
 Base = declarative_base()
 _engine = create_engine(f"sqlite:///{settings.db_path}", future=True)
@@ -71,6 +71,7 @@ class Signal(Base):
     # Probas individuelles (direction émise)
     rf_prob = Column(Float)
     xgb_prob = Column(Float)
+    lgb_prob = Column(Float)
     lstm_prob = Column(Float)
     iso_score = Column(Float)
 
@@ -128,6 +129,7 @@ _NEW_SIGNAL_COLUMNS: dict[str, str] = {
     "target_type": "VARCHAR(16) DEFAULT 'PEAK_100'",
     "consensus_long": "FLOAT",
     "consensus_short": "FLOAT",
+    "lgb_prob": "FLOAT",
     "sentiment_score": "FLOAT DEFAULT 0.0",
     "sentiment_label": "VARCHAR(16) DEFAULT 'NEUTRE'",
     "n_news_articles": "INTEGER DEFAULT 0",

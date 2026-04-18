@@ -50,6 +50,7 @@ def render_scanner() -> None:
                         "Prix": r.price,
                         "RF": r.rf_prob,
                         "XGB": r.xgb_prob,
+                        "LGB": r.lgb_prob,
                         "LSTM": r.lstm_prob,
                         "IsoForest": r.iso_score,
                     } for r in results])
@@ -58,6 +59,7 @@ def render_scanner() -> None:
                         df.style.format({
                             "Score": "{:.1%}", "Prix": "{:.2f}",
                             "RF": "{:.1%}", "XGB": "{:.1%}",
+                            "LGB": "{:.1%}",
                             "LSTM": "{:.1%}", "IsoForest": "{:.1%}",
                         }).background_gradient(subset=["Score"], cmap="RdYlGn"),
                         use_container_width=True, hide_index=True,

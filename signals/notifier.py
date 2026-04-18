@@ -25,6 +25,7 @@ def _compose(signal: Signal) -> MIMEMultipart:
     <ul>
       <li>Random Forest : {signal.rf_prob:.2%}</li>
       <li>XGBoost : {signal.xgb_prob:.2%}</li>
+      <li>LightGBM : {(signal.lgb_prob or 0.0):.2%}</li>
       <li>LSTM : {signal.lstm_prob:.2%}</li>
       <li>Iso Forest : {signal.iso_score:.2%}</li>
     </ul>

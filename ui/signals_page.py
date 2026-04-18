@@ -27,6 +27,7 @@ def render_signals() -> None:
         "Confiance": s.confidence,
         "RF": s.rf_prob,
         "XGB": s.xgb_prob,
+        "LGB": s.lgb_prob,
         "LSTM": s.lstm_prob,
         "IsoForest": s.iso_score,
         "Cible +50%": s.target_1,

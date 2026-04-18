@@ -32,6 +32,7 @@ class DirectionScore:
     consensus: float
     rf_prob: float
     xgb_prob: float
+    lgb_prob: float
     lstm_prob: float
     iso_score: float
 
@@ -49,6 +50,8 @@ class ScanResult:
     xgb_prob: float
     lstm_prob: float
     iso_score: float
+    # Sprint 4 : LGB par défaut 0.0 pour rétro-compat avec anciens modèles
+    lgb_prob: float = 0.0
     # Scores des deux directions pour transparence
     consensus_long: float = 0.0
     consensus_short: float = 0.0
@@ -61,10 +64,15 @@ def _sigmoid(x: float) -> float:
     return float(1.0 / (1.0 + np.exp(-x)))
 
 
+_DEFAULT_WEIGHTS = {"rf": 0.25, "xgb": 0.30, "lgb": 0.25, "lstm": 0.10, "iso": 0.10}
+
+
 def _consensus_weights(models: dict) -> dict[str, float]:
-    return models.get("metrics", {}).get("hyperparameters", {}).get(
-        "consensus_weights", {"rf": 0.35, "xgb": 0.40, "lstm": 0.15, "iso": 0.10}
+    w = models.get("metrics", {}).get("hyperparameters", {}).get(
+        "consensus_weights", _DEFAULT_WEIGHTS
     )
+    # Remplit les clés absentes (rétro-compat avec anciens metrics.json)
+    return {**_DEFAULT_WEIGHTS, **w}
 
 
 def _score_direction(
@@ -78,6 +86,7 @@ def _score_direction(
     key = "long" if direction == "LONG" else "short"
     rf = models.get(f"rf_{key}")
     xgb = models.get(f"xgb_{key}")
+    lgb = models.get(f"lgb_{key}")
     lstm = models.get(f"lstm_{key}")
     scaler = (
         models.get(f"scaler_{key}")
@@ -88,6 +97,7 @@ def _score_direction(
 
     rf_prob = float(rf.predict_proba(X)[0, 1]) if rf is not None else 0.0
     xgb_prob = float(xgb.predict_proba(X)[0, 1]) if xgb is not None else 0.0
+    lgb_prob = float(lgb.predict_proba(X)[0, 1]) if lgb is not None else 0.0
     lstm_prob = 0.0
     if lstm is not None and seq is not None:
         try:
@@ -96,8 +106,11 @@ def _score_direction(
             logger.debug(f"[scanner/{direction}] LSTM: {exc}")
 
     consensus = float(
-        weights["rf"] * rf_prob + weights["xgb"] * xgb_prob
-        + weights["lstm"] * lstm_prob + weights["iso"] * iso_score
+        weights["rf"] * rf_prob
+        + weights["xgb"] * xgb_prob
+        + weights["lgb"] * lgb_prob
+        + weights["lstm"] * lstm_prob
+        + weights["iso"] * iso_score
     )
     return DirectionScore(
         direction=direction,
@@ -105,6 +118,7 @@ def _score_direction(
         consensus=consensus,
         rf_prob=rf_prob,
         xgb_prob=xgb_prob,
+        lgb_prob=lgb_prob,
         lstm_prob=lstm_prob,
         iso_score=iso_score,
     )
@@ -170,6 +184,7 @@ def _score_one(ticker: str, df: pd.DataFrame, models: dict) -> ScanResult | None
         consensus=winner.consensus,
         rf_prob=winner.rf_prob,
         xgb_prob=winner.xgb_prob,
+        lgb_prob=winner.lgb_prob,
         lstm_prob=winner.lstm_prob,
         iso_score=winner.iso_score,
         consensus_long=score_long.consensus,
