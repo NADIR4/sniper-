@@ -6,6 +6,7 @@ from datetime import datetime
 import streamlit as st
 
 from config import settings
+from ui.auth import render_logout_button, require_auth
 from ui.dashboard import render_dashboard
 from ui.scanner_page import render_scanner
 from ui.signals_page import render_signals
@@ -307,8 +308,10 @@ PAGES = {
 
 def main() -> None:
     _inject_css()
+    require_auth()  # 🔒 bloque l'app tant que le mot de passe n'est pas entré (si APP_PASSWORD défini)
     _sidebar_header()
     choice = st.sidebar.radio("Navigation", list(PAGES.keys()), label_visibility="collapsed")
+    render_logout_button()
     _sidebar_footer()
     PAGES[choice]()
     st.markdown(

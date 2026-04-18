@@ -72,6 +72,9 @@ class Settings:
     # Valeurs: ULTRA | HIGH | MEDIUM | LOW (LOW = tout envoyer)
     notify_min_confidence: str = _env("NOTIFY_MIN_CONFIDENCE", "MEDIUM").upper()
 
+    # Mot de passe pour accéder à l'app en ligne (vide = pas de gate, accès public)
+    app_password: str = _env("APP_PASSWORD", "")
+
 
 settings = Settings()
 
