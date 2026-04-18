@@ -25,7 +25,7 @@ def _metric_header(metrics: dict) -> None:
 
 def _models_comparison(metrics: dict) -> None:
     rows = []
-    for key in ["random_forest", "xgboost", "lstm"]:
+    for key in ["random_forest", "xgboost", "lightgbm", "lstm"]:
         m = metrics.get(key, {})
         rows.append({
             "Modèle": m.get("name", key),
@@ -61,7 +61,12 @@ def _models_comparison(metrics: dict) -> None:
 def _roc_curves(metrics: dict) -> None:
     rocs = metrics.get("roc_curves", {})
     fig = go.Figure()
-    for key, color in [("random_forest", "#10B981"), ("xgboost", "#F59E0B"), ("lstm", "#EF4444")]:
+    for key, color in [
+        ("random_forest", "#10B981"),
+        ("xgboost", "#F59E0B"),
+        ("lightgbm", "#8B5CF6"),
+        ("lstm", "#EF4444"),
+    ]:
         d = rocs.get(key, {})
         if d.get("fpr"):
             auc = metrics.get(key, {}).get("roc_auc", 0)
@@ -82,9 +87,15 @@ def _roc_curves(metrics: dict) -> None:
 
 def _feature_importance(metrics: dict) -> None:
     imp = metrics.get("feature_importance", {})
-    tab_rf, tab_xgb, tab_combined = st.tabs(["🌲 Random Forest", "⚡ XGBoost", "🔀 Combinée"])
+    tab_rf, tab_xgb, tab_lgb, tab_combined = st.tabs(
+        ["🌲 Random Forest", "⚡ XGBoost", "💡 LightGBM", "🔀 Combinée"]
+    )
 
-    for tab, key in [(tab_rf, "random_forest"), (tab_xgb, "xgboost")]:
+    for tab, key in [
+        (tab_rf, "random_forest"),
+        (tab_xgb, "xgboost"),
+        (tab_lgb, "lightgbm"),
+    ]:
         with tab:
             imp_dict = imp.get(key, {})
             if not imp_dict:
@@ -100,18 +111,26 @@ def _feature_importance(metrics: dict) -> None:
     with tab_combined:
         rf_imp = imp.get("random_forest", {})
         xgb_imp = imp.get("xgboost", {})
+        lgb_imp = imp.get("lightgbm", {})
+        all_features = set(rf_imp) | set(xgb_imp) | set(lgb_imp)
         combined = []
-        for name in rf_imp:
+        for name in all_features:
+            rf_v = rf_imp.get(name, 0)
+            xgb_v = xgb_imp.get(name, 0)
+            lgb_v = lgb_imp.get(name, 0)
+            n_models = sum(1 for v in (rf_v, xgb_v, lgb_v) if v > 0) or 1
             combined.append({
                 "Feature": name,
-                "RF": rf_imp.get(name, 0),
-                "XGB": xgb_imp.get(name, 0),
-                "Moyenne": (rf_imp.get(name, 0) + xgb_imp.get(name, 0)) / 2,
+                "RF": rf_v,
+                "XGB": xgb_v,
+                "LGB": lgb_v,
+                "Moyenne": (rf_v + xgb_v + lgb_v) / n_models,
             })
         df_c = pd.DataFrame(combined).sort_values("Moyenne", ascending=False)
         st.dataframe(
-            df_c.style.format({"RF": "{:.4f}", "XGB": "{:.4f}", "Moyenne": "{:.4f}"})
-                .background_gradient(cmap="viridis", subset=["Moyenne"]),
+            df_c.style.format({
+                "RF": "{:.4f}", "XGB": "{:.4f}", "LGB": "{:.4f}", "Moyenne": "{:.4f}"
+            }).background_gradient(cmap="viridis", subset=["Moyenne"]),
             use_container_width=True, hide_index=True, height=500,
         )
 
@@ -119,39 +138,29 @@ def _feature_importance(metrics: dict) -> None:
 def _hyperparameters(metrics: dict) -> None:
     hp = metrics.get("hyperparameters", {})
 
+    def _hp_table(key: str) -> pd.DataFrame:
+        d = hp.get(key, {})
+        return pd.DataFrame([{"Paramètre": k, "Valeur": str(v)} for k, v in d.items()])
+
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### 🌲 Random Forest — Hyperparamètres")
-        rf = hp.get("random_forest", {})
-        st.dataframe(
-            pd.DataFrame([{"Paramètre": k, "Valeur": str(v)} for k, v in rf.items()]),
-            use_container_width=True, hide_index=True, height=380,
-        )
+        st.dataframe(_hp_table("random_forest"), use_container_width=True, hide_index=True, height=320)
+        st.markdown("#### 💡 LightGBM — Hyperparamètres")
+        st.dataframe(_hp_table("lightgbm"), use_container_width=True, hide_index=True, height=320)
         st.markdown("#### 🧠 LSTM — Architecture")
-        lstm = hp.get("lstm", {})
-        st.dataframe(
-            pd.DataFrame([{"Paramètre": k, "Valeur": str(v)} for k, v in lstm.items()]),
-            use_container_width=True, hide_index=True, height=380,
-        )
+        st.dataframe(_hp_table("lstm"), use_container_width=True, hide_index=True, height=260)
 
     with col2:
         st.markdown("#### ⚡ XGBoost — Hyperparamètres")
-        xgb = hp.get("xgboost", {})
-        st.dataframe(
-            pd.DataFrame([{"Paramètre": k, "Valeur": str(v)} for k, v in xgb.items()]),
-            use_container_width=True, hide_index=True, height=380,
-        )
+        st.dataframe(_hp_table("xgboost"), use_container_width=True, hide_index=True, height=320)
         st.markdown("#### 🔍 Isolation Forest")
-        iso = hp.get("isolation_forest", {})
-        st.dataframe(
-            pd.DataFrame([{"Paramètre": k, "Valeur": str(v)} for k, v in iso.items()]),
-            use_container_width=True, hide_index=True, height=200,
-        )
+        st.dataframe(_hp_table("isolation_forest"), use_container_width=True, hide_index=True, height=200)
         st.markdown("#### ⚖️ Poids du consensus")
         weights = hp.get("consensus_weights", {})
         df_w = pd.DataFrame([{"Modèle": k.upper(), "Poids": v} for k, v in weights.items()])
         fig = px.pie(df_w, values="Poids", names="Modèle", template="plotly_dark",
-                     hole=0.4, color_discrete_sequence=["#10B981", "#F59E0B", "#EF4444", "#8B5CF6"])
+                     hole=0.4, color_discrete_sequence=["#10B981", "#F59E0B", "#8B5CF6", "#EF4444", "#6B7280"])
         st.plotly_chart(fig, use_container_width=True)
 
 
