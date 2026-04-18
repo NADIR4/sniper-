@@ -47,6 +47,12 @@ from ml.features import (
     build_training_dataset_dual,
 )
 
+try:
+    from ml.tuning import load_best_params  # type: ignore
+except ImportError:  # fallback si optuna absent
+    def load_best_params(model: str, direction: str) -> dict | None:  # type: ignore
+        return None
+
 Direction = Literal["long", "short"]
 
 # === Hyperparamètres ultra-avancés ===
@@ -231,7 +237,12 @@ def _train_xgb(X: pd.DataFrame, y: pd.Series, direction: Direction):
     t0 = time.time()
     n_pos = max(int(y.sum()), 1)
     scale_pos = float((len(y) - y.sum()) / n_pos)
-    params = {**XGB_PARAMS, "scale_pos_weight": scale_pos}
+    # Prend les meilleurs params Optuna s'ils existent, sinon les defaults
+    tuned = load_best_params("xgb", direction)
+    base_params = {**XGB_PARAMS, **tuned} if tuned else XGB_PARAMS
+    if tuned:
+        logger.info(f"[xgb/{direction}] 🎯 Params Optuna chargés ({len(tuned)} clés)")
+    params = {**base_params, "scale_pos_weight": scale_pos}
 
     tscv = TimeSeriesSplit(n_splits=5)
     probs, trues = [], []
@@ -269,7 +280,11 @@ def _train_lgb(X: pd.DataFrame, y: pd.Series, direction: Direction):
 
     n_pos = max(int(y.sum()), 1)
     scale_pos = float((len(y) - y.sum()) / n_pos)
-    params = {**LGB_PARAMS, "scale_pos_weight": scale_pos}
+    tuned = load_best_params("lgb", direction)
+    base_params = {**LGB_PARAMS, **tuned} if tuned else LGB_PARAMS
+    if tuned:
+        logger.info(f"[lgb/{direction}] 🎯 Params Optuna chargés ({len(tuned)} clés)")
+    params = {**base_params, "scale_pos_weight": scale_pos}
 
     tscv = TimeSeriesSplit(n_splits=5)
     probs, trues = [], []
