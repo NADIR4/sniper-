@@ -1,0 +1,19 @@
+{
+  "best_value_pr_auc": 0.5166427290644776,
+  "params": {
+    "n_estimators": 600,
+    "max_depth": 6,
+    "learning_rate": 0.038288137060945554,
+    "subsample": 0.928890921023844,
+    "colsample_bytree": 0.724542140557796,
+    "min_child_weight": 3,
+    "gamma": 0.18290510655731623,
+    "reg_alpha": 0.45379573204440216,
+    "reg_lambda": 0.5445043726929498,
+    "scale_pos_weight": 1.590088232868805,
+    "eval_metric": "aucpr",
+    "tree_method": "hist",
+    "random_state": 42,
+    "n_jobs": -1
+  }
+}

@@ -200,12 +200,19 @@ def _metrics(
 
 
 def _calibrate(estimator, X: pd.DataFrame, y: pd.Series, method: str = "isotonic"):
-    """Isotonic calibration prefit sur un hold-out TimeSeriesSplit (dernier fold)."""
+    """Isotonic calibration prefit sur un hold-out TimeSeriesSplit (dernier fold).
+
+    Compatible sklearn >=1.6 (FrozenEstimator) et <1.6 (cv="prefit").
+    """
     tscv = TimeSeriesSplit(n_splits=5)
     splits = list(tscv.split(X))
     tr, te = splits[-1]
     estimator.fit(X.iloc[tr], y.iloc[tr])
-    calib = CalibratedClassifierCV(estimator, method=method, cv="prefit")
+    try:
+        from sklearn.frozen import FrozenEstimator  # sklearn >=1.6
+        calib = CalibratedClassifierCV(FrozenEstimator(estimator), method=method, cv=2)
+    except ImportError:
+        calib = CalibratedClassifierCV(estimator, method=method, cv="prefit")
     calib.fit(X.iloc[te], y.iloc[te])
     return calib
 

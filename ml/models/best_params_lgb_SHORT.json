@@ -1,0 +1,21 @@
+{
+  "best_value_pr_auc": 0.4260247483176195,
+  "params": {
+    "n_estimators": 900,
+    "num_leaves": 108,
+    "max_depth": 10,
+    "learning_rate": 0.06484707378828151,
+    "feature_fraction": 0.649958985003765,
+    "bagging_fraction": 0.66108590559379,
+    "bagging_freq": 9,
+    "min_child_samples": 46,
+    "reg_alpha": 0.722938704578246,
+    "reg_lambda": 1.425507017833826,
+    "scale_pos_weight": 1.9741457059825633,
+    "objective": "binary",
+    "metric": "average_precision",
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbose": -1
+  }
+}
