@@ -49,6 +49,9 @@ class Settings:
     smtp_user: str = _env("SMTP_USER", "")
     smtp_password: str = _env("SMTP_PASSWORD", "")
     alert_to_email: str = _env("ALERT_TO_EMAIL", "")
+    # Seuil minimum de confiance pour envoyer un email
+    # Valeurs: ULTRA | HIGH | MEDIUM | LOW (LOW = tout envoyer)
+    notify_min_confidence: str = _env("NOTIFY_MIN_CONFIDENCE", "MEDIUM").upper()
 
 
 settings = Settings()
