@@ -24,8 +24,19 @@ def _kpis(signals: list[Signal]) -> None:
     c5.metric("⏰ Dernier scan", f"{delta:.0f} min" if last else "—")
 
 
+def _dedupe_latest(signals: list[Signal]) -> list[Signal]:
+    """Garde 1 signal par (ticker, direction) — le plus récent."""
+    seen: dict[tuple[str, str], Signal] = {}
+    for s in sorted(signals, key=lambda x: x.created_at, reverse=True):
+        key = (s.ticker, s.direction or "LONG")
+        if key not in seen:
+            seen[key] = s
+    return list(seen.values())
+
+
 def _top_signals_table(signals: list[Signal], n: int = 10) -> None:
-    top = sorted(signals, key=lambda s: -s.consensus_score)[:n]
+    unique = _dedupe_latest(signals)
+    top = sorted(unique, key=lambda s: -s.consensus_score)[:n]
     if not top:
         st.info("Aucun signal pour le moment. Lance un scan pour commencer.")
         return

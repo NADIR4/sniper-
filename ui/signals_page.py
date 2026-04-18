@@ -40,6 +40,10 @@ def render_signals() -> None:
 
     with st.sidebar:
         st.markdown("### Filtres")
+        unique_only = st.checkbox(
+            "🔸 1 ligne par ticker (dernier signal)", value=True,
+            help="Masque les doublons — garde le signal le plus récent par ticker.",
+        )
         conf_filter = st.multiselect(
             "Confiance", ["ULTRA", "HIGH", "MEDIUM", "LOW"],
             default=["ULTRA", "HIGH", "MEDIUM"],
@@ -51,6 +55,11 @@ def render_signals() -> None:
     if tickers:
         mask &= df["Ticker"].isin(tickers)
     filtered = df[mask]
+    if unique_only and not filtered.empty:
+        filtered = (
+            filtered.sort_values("Date", ascending=False)
+            .drop_duplicates(subset=["Ticker"], keep="first")
+        )
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total filtrés", len(filtered))

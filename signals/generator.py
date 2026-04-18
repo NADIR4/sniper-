@@ -7,12 +7,18 @@ Sprint 2 :
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 
 from loguru import logger
 
 from config import settings
 from data.cache import FEATURE_VERSION, SessionLocal, Signal
 from ml.scanner import ScanResult
+
+# Fenêtre anti-doublon : ne pas recréer un signal identique (ticker+direction)
+# si un signal existe déjà dans les 60 dernières minutes. Évite le bruit des
+# scans rapprochés (scheduler toutes les 15 min).
+DEDUP_WINDOW_MINUTES = 60
 
 
 def _confidence_level(score: float) -> str:
@@ -89,17 +95,47 @@ def build_signal(scan: ScanResult) -> Signal | None:
     return sig
 
 
-def persist_signals(signals: list[Signal]) -> list[Signal]:
+def _is_duplicate(session, signal: Signal, window_minutes: int) -> bool:
+    """Vrai si un signal identique (ticker+direction) existe déjà dans la fenêtre."""
+    cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
+    existing = (
+        session.query(Signal)
+        .filter(
+            Signal.ticker == signal.ticker,
+            Signal.direction == signal.direction,
+            Signal.created_at >= cutoff,
+        )
+        .first()
+    )
+    return existing is not None
+
+
+def persist_signals(
+    signals: list[Signal],
+    dedup_window_minutes: int = DEDUP_WINDOW_MINUTES,
+) -> list[Signal]:
     if not signals:
         return []
+    persisted: list[Signal] = []
+    skipped = 0
     with SessionLocal() as session:
         for s in signals:
+            if _is_duplicate(session, s, dedup_window_minutes):
+                skipped += 1
+                continue
             session.add(s)
+            persisted.append(s)
         session.commit()
-        for s in signals:
+        for s in persisted:
             session.refresh(s)
-    logger.info(f"[signals] {len(signals)} signaux sauvegardés")
-    return signals
+    if skipped:
+        logger.info(
+            f"[signals] {len(persisted)} sauvegardés, {skipped} doublons ignorés "
+            f"(fenêtre {dedup_window_minutes} min)"
+        )
+    else:
+        logger.info(f"[signals] {len(persisted)} signaux sauvegardés")
+    return persisted
 
 
 def fetch_signals(limit: int = 200) -> list[Signal]:
