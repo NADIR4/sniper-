@@ -12,6 +12,66 @@ import streamlit as st
 from ml.trainer import load_models
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers : rétro-compat metrics.json (legacy top-level ↔ nouveau long/short)
+# ─────────────────────────────────────────────────────────────────────────────
+# Le trainer v2 stocke les métriques sous metrics["long"][<key>] et metrics["short"][<key>].
+# Certaines clés legacy (random_forest, xgboost, lstm) existent AUSSI au top-level
+# pour rétro-compat — mais lightgbm n'existe qu'en sous-arbre. Ces helpers
+# cherchent partout et aliasent les nommages (rf ↔ random_forest, xgboost ↔ xgb).
+_LEGACY_ALIAS: dict[str, tuple[str, ...]] = {
+    "random_forest": ("random_forest", "rf"),
+    "xgboost": ("xgboost", "xgb"),
+    "lightgbm": ("lightgbm", "lgb"),
+    "lstm": ("lstm",),
+}
+
+
+def _pick_model(metrics: dict, key: str, direction: str = "long") -> dict:
+    """Retourne le sous-dict de métriques pour un modèle, peu importe la structure."""
+    aliases = _LEGACY_ALIAS.get(key, (key,))
+    # 1) metrics[direction][alias]
+    sub = metrics.get(direction, {})
+    for a in aliases:
+        if isinstance(sub.get(a), dict) and sub[a]:
+            return sub[a]
+    # 2) metrics[alias] (top-level legacy)
+    for a in aliases:
+        if isinstance(metrics.get(a), dict) and metrics[a]:
+            return metrics[a]
+    return {}
+
+
+def _pick_importance(metrics: dict, key: str, direction: str = "long") -> dict:
+    """Idem pour feature_importance."""
+    aliases = _LEGACY_ALIAS.get(key, (key,))
+    # 1) metrics[direction].feature_importance[alias]
+    fi = metrics.get(direction, {}).get("feature_importance", {})
+    for a in aliases:
+        if fi.get(a):
+            return fi[a]
+    # 2) metrics.feature_importance[alias] (legacy top-level)
+    fi_top = metrics.get("feature_importance", {})
+    for a in aliases:
+        if fi_top.get(a):
+            return fi_top[a]
+    return {}
+
+
+def _pick_roc(metrics: dict, key: str, direction: str = "long") -> dict:
+    """Idem pour roc_curves."""
+    aliases = _LEGACY_ALIAS.get(key, (key,))
+    rc = metrics.get(direction, {}).get("roc_curves", {})
+    for a in aliases:
+        if rc.get(a, {}).get("fpr"):
+            return rc[a]
+    rc_top = metrics.get("roc_curves", {})
+    for a in aliases:
+        if rc_top.get(a, {}).get("fpr"):
+            return rc_top[a]
+    return {}
+
+
 def _metric_header(metrics: dict) -> None:
     ds = metrics.get("dataset", {})
     c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -23,70 +83,99 @@ def _metric_header(metrics: dict) -> None:
     c6.metric("⏱️ Train", f"{metrics.get('total_train_time_sec', 0):.0f}s")
 
 
-def _models_comparison(metrics: dict) -> None:
+def _models_comparison(metrics: dict, direction: str = "long") -> None:
     rows = []
+    display_names = {
+        "random_forest": "RandomForest",
+        "xgboost": "XGBoost",
+        "lightgbm": "LightGBM",
+        "lstm": "LSTM",
+    }
+    untrained: list[str] = []
     for key in ["random_forest", "xgboost", "lightgbm", "lstm"]:
-        m = metrics.get(key, {})
+        m = _pick_model(metrics, key, direction)
+        is_trained = bool(m) and m.get("roc_auc", 0) > 0
+        if not is_trained:
+            untrained.append(display_names[key])
         rows.append({
-            "Modèle": m.get("name", key),
+            "Modèle": m.get("name", display_names[key]),
             "Accuracy": m.get("accuracy", 0),
             "Precision": m.get("precision", 0),
             "Recall": m.get("recall", 0),
             "F1": m.get("f1", 0),
             "ROC-AUC": m.get("roc_auc", 0),
+            "PR-AUC": m.get("pr_auc", 0),
             "Best Threshold": m.get("best_threshold", 0.5),
-            "OOB Score": m.get("oob_score", 0),
             "Train (s)": m.get("train_time_sec", 0),
             "N pos": m.get("n_positives", 0),
         })
     df = pd.DataFrame(rows)
+
+    # Bannière : explique les modèles à zéro
+    if untrained:
+        lstm_note = ""
+        if "LSTM" in untrained:
+            lstm_note = " · LSTM désactivé sur Streamlit Cloud (TensorFlow trop lourd pour le free tier)"
+        st.info(f"ℹ️ Modèles non entraînés pour la direction **{direction.upper()}** : "
+                f"{', '.join(untrained)}{lstm_note}")
+
     st.dataframe(
         df.style.format({
             c: "{:.3f}" for c in ["Accuracy", "Precision", "Recall", "F1", "ROC-AUC",
-                                  "Best Threshold", "OOB Score"]
+                                  "PR-AUC", "Best Threshold"]
         }).background_gradient(cmap="RdYlGn", subset=["Accuracy", "F1", "ROC-AUC"]),
         use_container_width=True, hide_index=True,
     )
 
-    melted = df.melt(
-        id_vars="Modèle", value_vars=["Accuracy", "Precision", "Recall", "F1", "ROC-AUC"],
-        var_name="Métrique", value_name="Score",
-    )
-    fig = px.bar(melted, x="Modèle", y="Score", color="Métrique", barmode="group",
-                 template="plotly_dark", title="Comparaison des métriques par modèle",
-                 height=400)
-    st.plotly_chart(fig, use_container_width=True)
+    # Graphique : on n'inclut que les modèles effectivement entraînés
+    df_plot = df[df["ROC-AUC"] > 0]
+    if not df_plot.empty:
+        melted = df_plot.melt(
+            id_vars="Modèle",
+            value_vars=["Accuracy", "Precision", "Recall", "F1", "ROC-AUC"],
+            var_name="Métrique", value_name="Score",
+        )
+        fig = px.bar(
+            melted, x="Modèle", y="Score", color="Métrique", barmode="group",
+            template="plotly_dark",
+            title=f"Comparaison des métriques — direction {direction.upper()}",
+            height=400,
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 
-def _roc_curves(metrics: dict) -> None:
-    rocs = metrics.get("roc_curves", {})
+def _roc_curves(metrics: dict, direction: str = "long") -> None:
     fig = go.Figure()
+    any_curve = False
     for key, color in [
         ("random_forest", "#10B981"),
         ("xgboost", "#F59E0B"),
         ("lightgbm", "#8B5CF6"),
         ("lstm", "#EF4444"),
     ]:
-        d = rocs.get(key, {})
+        d = _pick_roc(metrics, key, direction)
         if d.get("fpr"):
-            auc = metrics.get(key, {}).get("roc_auc", 0)
+            auc = _pick_model(metrics, key, direction).get("roc_auc", 0)
             fig.add_trace(go.Scatter(
                 x=d["fpr"], y=d["tpr"],
-                name=f"{metrics.get(key, {}).get('name', key)} (AUC={auc:.3f})",
+                name=f"{_pick_model(metrics, key, direction).get('name', key)} (AUC={auc:.3f})",
                 line=dict(color=color, width=2.5),
             ))
+            any_curve = True
+    if not any_curve:
+        st.info(f"Aucune courbe ROC disponible pour la direction {direction.upper()}.")
+        return
     fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], line=dict(dash="dash", color="gray"),
                              name="Random (AUC=0.5)", showlegend=True))
     fig.update_layout(
-        title="Courbes ROC", template="plotly_dark",
+        title=f"Courbes ROC — direction {direction.upper()}", template="plotly_dark",
         xaxis_title="False Positive Rate", yaxis_title="True Positive Rate",
         height=500,
     )
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _feature_importance(metrics: dict) -> None:
-    imp = metrics.get("feature_importance", {})
+def _feature_importance(metrics: dict, direction: str = "long") -> None:
     tab_rf, tab_xgb, tab_lgb, tab_combined = st.tabs(
         ["🌲 Random Forest", "⚡ XGBoost", "💡 LightGBM", "🔀 Combinée"]
     )
@@ -97,7 +186,7 @@ def _feature_importance(metrics: dict) -> None:
         (tab_lgb, "lightgbm"),
     ]:
         with tab:
-            imp_dict = imp.get(key, {})
+            imp_dict = _pick_importance(metrics, key, direction)
             if not imp_dict:
                 st.info("Pas de données")
                 continue
@@ -109,9 +198,9 @@ def _feature_importance(metrics: dict) -> None:
             st.plotly_chart(fig, use_container_width=True)
 
     with tab_combined:
-        rf_imp = imp.get("random_forest", {})
-        xgb_imp = imp.get("xgboost", {})
-        lgb_imp = imp.get("lightgbm", {})
+        rf_imp = _pick_importance(metrics, "random_forest", direction)
+        xgb_imp = _pick_importance(metrics, "xgboost", direction)
+        lgb_imp = _pick_importance(metrics, "lightgbm", direction)
         all_features = set(rf_imp) | set(xgb_imp) | set(lgb_imp)
         combined = []
         for name in all_features:
@@ -205,6 +294,22 @@ def render_ml() -> None:
         return
 
     _metric_header(metrics)
+
+    # Sélecteur de direction (LONG = détection de pumps, SHORT = détection de crashs)
+    has_short = bool(metrics.get("short"))
+    if has_short:
+        col_dir, _ = st.columns([1, 4])
+        with col_dir:
+            direction_label = st.radio(
+                "Direction",
+                ["📈 LONG (pumps)", "📉 SHORT (crashs)"],
+                horizontal=True,
+                label_visibility="collapsed",
+            )
+            direction = "long" if "LONG" in direction_label else "short"
+    else:
+        direction = "long"
+
     st.markdown("---")
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -212,11 +317,11 @@ def render_ml() -> None:
         "⚙️ Hyperparamètres", "📊 Dataset",
     ])
     with tab1:
-        _models_comparison(metrics)
+        _models_comparison(metrics, direction)
     with tab2:
-        _roc_curves(metrics)
+        _roc_curves(metrics, direction)
     with tab3:
-        _feature_importance(metrics)
+        _feature_importance(metrics, direction)
     with tab4:
         _hyperparameters(metrics)
     with tab5:
