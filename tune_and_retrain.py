@@ -33,7 +33,14 @@ gainers = filter_gainers(panels)
 logger.info(f"🔎 {len(gainers)} gainers gardés sur {len(panels)}")
 
 logger.info("🧬 Build dataset dual (LONG + SHORT)…")
-duals = build_training_dataset_dual(gainers)
+peak_threshold = settings.min_gain_pct / 100.0  # 0.5 si MIN_GAIN_PCT=50
+duals = build_training_dataset_dual(
+    gainers,
+    lookback=settings.lookback_days,
+    horizon=120,
+    peak_threshold=peak_threshold,
+    crash_threshold=0.30,
+)
 X_long, y_long, _ = duals["long"]
 X_short, y_short, _ = duals["short"]
 logger.info(f"🧬 LONG: {len(X_long)} rows, {int(y_long.sum())} pos | SHORT: {len(X_short)} rows, {int(y_short.sum())} pos")
