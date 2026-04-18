@@ -1,4 +1,4 @@
-"""Configuration centrale chargée depuis .env."""
+"""Configuration centrale chargée depuis .env (local) ou st.secrets (Streamlit Cloud)."""
 from __future__ import annotations
 
 import os
@@ -10,8 +10,27 @@ ROOT = Path(__file__).parent
 load_dotenv(ROOT / ".env")
 
 
+def _streamlit_secrets() -> dict:
+    """Récupère les secrets Streamlit Cloud si dispo (sinon dict vide)."""
+    try:
+        import streamlit as st  # noqa: WPS433 — import conditionnel
+        # st.secrets accède au fichier .streamlit/secrets.toml OU aux secrets cloud
+        return dict(st.secrets) if hasattr(st, "secrets") and st.secrets else {}
+    except Exception:
+        return {}
+
+
+_SECRETS = _streamlit_secrets()
+
+
 def _env(key: str, default: str) -> str:
-    return os.getenv(key, default)
+    """Lit depuis (par ordre de priorité) : os.environ > st.secrets > default."""
+    val = os.getenv(key)
+    if val is not None:
+        return val
+    if key in _SECRETS:
+        return str(_SECRETS[key])
+    return default
 
 
 def _env_int(key: str, default: int) -> int:

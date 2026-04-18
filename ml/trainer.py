@@ -558,7 +558,13 @@ def load_models() -> dict:
     """Charge scaler + RF/XGB pour LONG et SHORT + IsolationForest + LSTM long.
 
     Conserve les clés legacy rf/xgb/lstm (= LONG) pour compat scanner+UI.
+    Si les modèles sont absents et MODELS_RELEASE_URL est définie, tente un
+    bootstrap (téléchargement depuis GitHub Release) avant le chargement.
     """
+    from ml.bootstrap import bootstrap_models, models_are_present
+    if not models_are_present():
+        bootstrap_models()
+
     m = settings.models_dir
     scaler_legacy = _load_optional(m / "scaler.pkl")
     scaler_long = _load_optional(m / "scaler_long.pkl") or scaler_legacy

@@ -13,3 +13,5 @@ ml/models/*.keras
 venv/
 .pytest_cache/
 .streamlit/secrets.toml
+dist/
+*.log
