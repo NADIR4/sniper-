@@ -124,7 +124,7 @@ def _models_comparison(metrics: dict, direction: str = "long") -> None:
             c: "{:.3f}" for c in ["Accuracy", "Precision", "Recall", "F1", "ROC-AUC",
                                   "PR-AUC", "Best Threshold"]
         }).background_gradient(cmap="RdYlGn", subset=["Accuracy", "F1", "ROC-AUC"]),
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
     )
 
     # Graphique : on n'inclut que les modèles effectivement entraînés
@@ -141,7 +141,7 @@ def _models_comparison(metrics: dict, direction: str = "long") -> None:
             title=f"Comparaison des métriques — direction {direction.upper()}",
             height=400,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 def _roc_curves(metrics: dict, direction: str = "long") -> None:
@@ -172,7 +172,7 @@ def _roc_curves(metrics: dict, direction: str = "long") -> None:
         xaxis_title="False Positive Rate", yaxis_title="True Positive Rate",
         height=500,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def _feature_importance(metrics: dict, direction: str = "long") -> None:
@@ -195,7 +195,7 @@ def _feature_importance(metrics: dict, direction: str = "long") -> None:
             fig = px.bar(df_imp, x="Importance", y="Feature", orientation="h",
                          template="plotly_dark", height=650,
                          color="Importance", color_continuous_scale="Viridis")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     with tab_combined:
         rf_imp = _pick_importance(metrics, "random_forest", direction)
@@ -220,7 +220,7 @@ def _feature_importance(metrics: dict, direction: str = "long") -> None:
             df_c.style.format({
                 "RF": "{:.4f}", "XGB": "{:.4f}", "LGB": "{:.4f}", "Moyenne": "{:.4f}"
             }).background_gradient(cmap="viridis", subset=["Moyenne"]),
-            use_container_width=True, hide_index=True, height=500,
+            width="stretch", hide_index=True, height=500,
         )
 
 
@@ -234,23 +234,23 @@ def _hyperparameters(metrics: dict) -> None:
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### 🌲 Random Forest — Hyperparamètres")
-        st.dataframe(_hp_table("random_forest"), use_container_width=True, hide_index=True, height=320)
+        st.dataframe(_hp_table("random_forest"), width="stretch", hide_index=True, height=320)
         st.markdown("#### 💡 LightGBM — Hyperparamètres")
-        st.dataframe(_hp_table("lightgbm"), use_container_width=True, hide_index=True, height=320)
+        st.dataframe(_hp_table("lightgbm"), width="stretch", hide_index=True, height=320)
         st.markdown("#### 🧠 LSTM — Architecture")
-        st.dataframe(_hp_table("lstm"), use_container_width=True, hide_index=True, height=260)
+        st.dataframe(_hp_table("lstm"), width="stretch", hide_index=True, height=260)
 
     with col2:
         st.markdown("#### ⚡ XGBoost — Hyperparamètres")
-        st.dataframe(_hp_table("xgboost"), use_container_width=True, hide_index=True, height=320)
+        st.dataframe(_hp_table("xgboost"), width="stretch", hide_index=True, height=320)
         st.markdown("#### 🔍 Isolation Forest")
-        st.dataframe(_hp_table("isolation_forest"), use_container_width=True, hide_index=True, height=200)
+        st.dataframe(_hp_table("isolation_forest"), width="stretch", hide_index=True, height=200)
         st.markdown("#### ⚖️ Poids du consensus")
         weights = hp.get("consensus_weights", {})
         df_w = pd.DataFrame([{"Modèle": k.upper(), "Poids": v} for k, v in weights.items()])
         fig = px.pie(df_w, values="Poids", names="Modèle", template="plotly_dark",
                      hole=0.4, color_discrete_sequence=["#10B981", "#F59E0B", "#8B5CF6", "#EF4444", "#6B7280"])
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 def _dataset_stats(metrics: dict) -> None:
@@ -269,7 +269,7 @@ def _dataset_stats(metrics: dict) -> None:
             {"Métrique": "Horizon prédiction", "Valeur": f"{ds.get('horizon_days', 0)} jours"},
             {"Métrique": "Seuil de gain", "Valeur": f"+{ds.get('gain_threshold_pct', 0):.0f}%"},
         ])
-        st.dataframe(df, use_container_width=True, hide_index=True, height=360)
+        st.dataframe(df, width="stretch", hide_index=True, height=360)
     with col2:
         st.markdown("#### 🎯 Répartition des classes")
         fig = go.Figure(data=[go.Pie(
@@ -279,7 +279,7 @@ def _dataset_stats(metrics: dict) -> None:
             marker=dict(colors=["#10B981", "#6B7280"]),
         )])
         fig.update_layout(template="plotly_dark", height=360)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 def render_ml() -> None:

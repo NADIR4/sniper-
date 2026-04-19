@@ -35,8 +35,8 @@ def render_settings() -> None:
                 "Models dir": str(settings.models_dir),
                 "Exports dir": str(settings.exports_dir),
             }
-            df = pd.DataFrame([{"Paramètre": k, "Valeur": v} for k, v in sys_cfg.items()])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            df = pd.DataFrame([{"Paramètre": k, "Valeur": str(v)} for k, v in sys_cfg.items()])
+            st.dataframe(df, width="stretch", hide_index=True)
 
         with col2:
             st.markdown("#### Pipeline ML")
@@ -47,8 +47,8 @@ def render_settings() -> None:
                 "History years": settings.history_years,
                 "Min gain %": f"+{settings.min_gain_pct}%",
             }
-            df = pd.DataFrame([{"Paramètre": k, "Valeur": v} for k, v in ml_cfg.items()])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            df = pd.DataFrame([{"Paramètre": k, "Valeur": str(v)} for k, v in ml_cfg.items()])
+            st.dataframe(df, width="stretch", hide_index=True)
 
         st.warning(
             "💡 Pour modifier ces paramètres, édite le fichier `.env` à la racine du projet "
@@ -86,8 +86,8 @@ def render_settings() -> None:
             "Password": "••••••••" if settings.smtp_password else "—",
             "Alert recipient": settings.alert_to_email or "—",
         }
-        df = pd.DataFrame([{"Paramètre": k, "Valeur": v} for k, v in smtp_cfg.items()])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        df = pd.DataFrame([{"Paramètre": k, "Valeur": str(v)} for k, v in smtp_cfg.items()])
+        st.dataframe(df, width="stretch", hide_index=True)
 
         if settings.alert_to_email:
             st.success(f"✅ Les alertes seront envoyées à : **{settings.alert_to_email}**")

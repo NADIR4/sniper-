@@ -50,7 +50,7 @@ def _render_results(results) -> None:
                 "RF": "{:.1%}", "XGB": "{:.1%}", "LGB": "{:.1%}",
                 "LSTM": "{:.1%}", "IsoForest": "{:.1%}",
             }).background_gradient(subset=["Score"], cmap="RdYlGn"),
-            use_container_width=True, hide_index=True, height=560,
+            width="stretch", hide_index=True, height=560,
         )
     with col2:
         st.subheader("📊 Distribution scores")
@@ -64,7 +64,7 @@ def _render_results(results) -> None:
             xaxis=dict(gridcolor="rgba(148,163,184,0.08)", tickformat=".0%"),
             yaxis=dict(gridcolor="rgba(148,163,184,0.08)"),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         st.subheader("🧬 Accord modèles")
         # Un scatter RF vs XGB coloré par score
@@ -79,7 +79,7 @@ def _render_results(results) -> None:
             xaxis=dict(gridcolor="rgba(148,163,184,0.08)", tickformat=".0%"),
             yaxis=dict(gridcolor="rgba(148,163,184,0.08)", tickformat=".0%"),
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width="stretch")
 
 
 def render_scanner() -> None:
@@ -102,7 +102,7 @@ def render_scanner() -> None:
     # Bouton scan
     col_btn, col_info = st.columns([1, 2])
     with col_btn:
-        launch = st.button("🚀 Lancer le scan", type="primary", use_container_width=True)
+        launch = st.button("🚀 Lancer le scan", type="primary", width="stretch")
     with col_info:
         st.info(
             "Le scan analyse chaque ticker avec RF + XGBoost + LightGBM + LSTM + IsolationForest, "

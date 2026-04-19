@@ -135,7 +135,7 @@ def _confidence_donut(signals: list[Signal]) -> None:
         showlegend=False,
         paper_bgcolor="rgba(0,0,0,0)",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def _timeline(signals: list[Signal]) -> None:
@@ -167,7 +167,7 @@ def _timeline(signals: list[Signal]) -> None:
         barmode="stack",
         legend=dict(orientation="h", y=-0.15),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 def _top_signals_table(signals: list[Signal], n: int = 10) -> None:
@@ -195,7 +195,7 @@ def _top_signals_table(signals: list[Signal], n: int = 10) -> None:
             "Stop": "{:.2f}", "R/R": "{:.2f}",
         }).background_gradient(subset=["Score"], cmap="RdYlGn")
           .background_gradient(subset=["R/R"], cmap="viridis"),
-        use_container_width=True, hide_index=True, height=380,
+        width="stretch", hide_index=True, height=380,
     )
 
 
@@ -235,7 +235,7 @@ def _price_chart(ticker: str) -> None:
         margin=dict(l=10, r=10, t=40, b=10),
         legend=dict(orientation="h", y=-0.12),
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

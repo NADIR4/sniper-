@@ -74,7 +74,7 @@ def render_signals() -> None:
             "Cible +100%": "{:.2f}", "Cible +200%": "{:.2f}",
             "Stop-Loss": "{:.2f}", "R/R": "{:.2f}",
         }).background_gradient(subset=["Score"], cmap="RdYlGn"),
-        use_container_width=True, hide_index=True, height=500,
+        width="stretch", hide_index=True, height=500,
     )
 
     st.markdown("---")

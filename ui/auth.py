@@ -77,7 +77,7 @@ def _render_login() -> None:
 
     with st.form("sniper_login", clear_on_submit=True):
         pwd = st.text_input("Mot de passe", type="password", placeholder="••••••••")
-        submit = st.form_submit_button("🔓 Déverrouiller", use_container_width=True)
+        submit = st.form_submit_button("🔓 Déverrouiller", width="stretch")
 
     if submit:
         if _check(pwd):
@@ -118,6 +118,6 @@ def render_logout_button() -> None:
         return
     if not st.session_state.get(_SESSION_KEY):
         return
-    if st.sidebar.button("🔒 Se déconnecter", use_container_width=True, type="secondary"):
+    if st.sidebar.button("🔒 Se déconnecter", width="stretch", type="secondary"):
         st.session_state[_SESSION_KEY] = False
         st.rerun()
