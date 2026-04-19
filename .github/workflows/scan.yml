@@ -1,0 +1,108 @@
+name: Sniper Scan (cron)
+
+on:
+  # Toutes les 30 min pendant les heures de marché (UTC)
+  # Marchés US : 13:30-20:00 UTC (9h30-16h ET)
+  # Marchés EU : 08:00-16:30 UTC
+  schedule:
+    - cron: "*/30 8-20 * * 1-5"
+  # Déclenchement manuel depuis l'onglet Actions
+  workflow_dispatch:
+    inputs:
+      skip_news:
+        description: "Skip fetch-news (plus rapide)"
+        required: false
+        default: "false"
+
+concurrency:
+  group: sniper-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      # Secrets injectés comme variables d'environnement
+      MODELS_RELEASE_URL: ${{ secrets.MODELS_RELEASE_URL }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      ALERT_TO_EMAIL: ${{ secrets.ALERT_TO_EMAIL }}
+      NOTIFY_MIN_CONFIDENCE: ${{ secrets.NOTIFY_MIN_CONFIDENCE || 'MEDIUM' }}
+      CONSENSUS_THRESHOLD: ${{ secrets.CONSENSUS_THRESHOLD || '0.60' }}
+      MIN_GAIN_PCT: ${{ secrets.MIN_GAIN_PCT || '50' }}
+      LOOKBACK_DAYS: ${{ secrets.LOOKBACK_DAYS || '60' }}
+      HISTORY_YEARS: ${{ secrets.HISTORY_YEARS || '3' }}
+      LOG_LEVEL: "INFO"
+      APP_ENV: "production"
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify required secrets
+        run: |
+          missing=()
+          [ -z "$MODELS_RELEASE_URL" ] && missing+=("MODELS_RELEASE_URL")
+          [ -z "$SMTP_USER" ] && missing+=("SMTP_USER")
+          [ -z "$SMTP_PASSWORD" ] && missing+=("SMTP_PASSWORD")
+          [ -z "$ALERT_TO_EMAIL" ] && missing+=("ALERT_TO_EMAIL")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Secrets manquants : ${missing[*]}"
+            echo "::error::Ajoute-les dans Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "OK : tous les secrets requis sont présents"
+
+      - name: Bootstrap ML models (download from Release)
+        run: |
+          python -c "from ml.bootstrap import bootstrap_models; ok = bootstrap_models(force=False); print('models ready:', ok); import sys; sys.exit(0 if ok else 1)"
+
+      - name: Run scan (detect opportunities + send emails)
+        run: python main.py scan
+
+      - name: Export report (Excel)
+        if: always()
+        run: python main.py report || echo "::warning::report export failed"
+
+      - name: Upload artifacts (signals DB + exports + logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sniper-run-${{ github.run_number }}
+          path: |
+            cache/sniper.db
+            exports/*.xlsx
+            logs/*.log
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Sniper Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Run: #${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Trigger: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Time (UTC): $(date -u +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          if [ -f cache/sniper.db ]; then
+            echo "- DB size: $(du -h cache/sniper.db | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -d logs ]; then
+            echo "- Logs:" >> $GITHUB_STEP_SUMMARY
+            ls -la logs/ | tail -5 >> $GITHUB_STEP_SUMMARY
+          fi
